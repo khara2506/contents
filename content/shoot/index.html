@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>怪獣シューティングゲーム</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #333;
+    }
+    /* ゲーム画面全体を覆うコンテナ */
+    #gameContainer {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    /* canvas は全画面にフィット */
+    #gameCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: black;
+    }
+    /* 攻撃ボタン（画面右下固定） */
+    #attackButton {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 100;
+      padding: 20px;
+      font-size: 24px;
+      border: none;
+      border-radius: 50%;
+      background-color: rgba(255, 0, 0, 0.7);
+      color: white;
+    }
+    /* リスタートボタン（ゲームオーバー時に右上に表示） */
+    #restartOverlay {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      display: none;
+    }
+    #restartOverlay button {
+      padding: 10px 20px;
+      font-size: 18px;
+      border: none;
+      border-radius: 5px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+    }
+    /* スタート画面（全画面オーバーレイ） */
+    #startScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #444;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+    }
+    #startScreen select, 
+    #startScreen button {
+      padding: 10px 20px;
+      font-size: 20px;
+      margin-top: 20px;
+      border: none;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+    <button id="attackButton">攻撃</button>
+    <div id="restartOverlay">
+      <button id="restartButton">リスタート</button>
+    </div>
+    <div id="startScreen">
+      <h1>怪獣シューティングゲーム</h1>
+      <div>
+        <label>難易度: </label>
+        <select id="levelSelect">
+          <option value="1">レベル 1</option>
+          <option value="2">レベル 2</option>
+          <option value="3">レベル 3</option>
+          <option value="4">レベル 4</option>
+          <option value="5">レベル 5</option>
+          <option value="6">レベル 6</option>
+          <option value="7">レベル 7</option>
+          <option value="8">レベル 8</option>
+          <option value="9">レベル 9</option>
+          <option value="10">レベル 10</option>
+          <option value="11">レベル 11</option>
+          <option value="12">レベル 12</option>
+          <option value="13">レベル 13</option>
+          <option value="14">レベル 14</option>
+          <option value="15">レベル 15</option>
+          <option value="16">レベル 16</option>
+          <option value="17">レベル 17</option>
+          <option value="18">レベル 18</option>
+          <option value="19">レベル 19</option>
+          <option value="20">レベル 20</option>
+        </select>
+      </div>
+      <button id="startButton">ゲームスタート</button>
+    </div>
+  </div>
+
+  <script>
+    // ゲーム状態
+    const game = {
+      isRunning: false,
+      score: 0,
+      level: 1,
+      initialLevel: 1,
+      enemySpawnRate: 100,
+      enemySpeed: 2,
+      gameOverSoundPlayed: false
+    };
+
+    let animationFrameId = null;  // アニメーションループ管理
+
+    // DOM要素
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('startScreen');
+    const levelSelect = document.getElementById('levelSelect');
+    const startButton = document.getElementById('startButton');
+    const attackButton = document.getElementById('attackButton');
+    const restartOverlay = document.getElementById('restartOverlay');
+    const restartButton = document.getElementById('restartButton');
+
+    // 画像オブジェクトの作成
+    // 味方キャラクター
+    const playerImage = new Image();
+    playerImage.src = "AO.png";
+    // 敵キャラクターは3種類に変更
+    const enemyImage1 = new Image();
+    enemyImage1.src = "aoirunnynose.png";
+    const enemyImage2 = new Image();
+    enemyImage2.src = "aoiyummy.png";
+    const enemyImage3 = new Image();
+    enemyImage3.src = "sotayummy.png";
+    const enemyImages = [enemyImage1, enemyImage2, enemyImage3];
+
+    // プレイヤー情報（ゲーム開始時に初期化）
+    const player = {
+      x: 0,
+      y: 0,
+      width: 60,
+      height: 60,
+      speed: 5,
+      bullets: [],
+      bulletSpeed: 7,
+      bulletCooldown: 0,
+      fireRate: 15
+    };
+
+    let enemies = [];
+    let enemyBullets = [];
+
+    // キー入力（PC用）
+    const keys = {};
+    window.addEventListener('keydown', (e) => { keys[e.key] = true; });
+    window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+    // タッチ操作（移動用）：canvas上のタッチ位置に合わせてプレイヤー移動
+    canvas.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      player.x = touch.clientX - rect.left;
+      player.y = touch.clientY - rect.top;
+    });
+    canvas.addEventListener('touchmove', function(e) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      player.x = touch.clientX - rect.left;
+      player.y = touch.clientY - rect.top;
+    });
+
+    // 攻撃ボタン：タッチまたはクリックで弾発射
+    function fireBullet() {
+      if (player.bulletCooldown <= 0) {
+        player.bullets.push({
+          x: player.x,
+          y: player.y - player.height / 2
+        });
+        player.bulletCooldown = player.fireRate;
+        playShootSound();
+      }
+    }
+    attackButton.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      fireBullet();
+    });
+    attackButton.addEventListener('click', (e) => {
+      fireBullet();
+    });
+
+    // AudioContext の初期化とスマホでも音が出るようにタッチ開始イベントを追加
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    document.addEventListener('touchstart', function initAudioTouch() {
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      document.removeEventListener('touchstart', initAudioTouch);
+    });
+    document.addEventListener('click', function initAudioClick() {
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      document.removeEventListener('click', initAudioClick);
+    });
+    let soundEnabled = true;
+    function createShootSound() {
+      return () => {
+        if (!soundEnabled) return;
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.1);
+      };
+    }
+    function createExplosionSound() {
+      return () => {
+        if (!soundEnabled) return;
+        const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.2, audioContext.sampleRate);
+        const noise = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseBuffer.length; i++) {
+          noise[i] = Math.random() * 2 - 1;
+        }
+        const noiseSource = audioContext.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        const noiseGain = audioContext.createGain();
+        noiseGain.gain.setValueAtTime(0.5, audioContext.currentTime);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+        noiseSource.connect(noiseGain);
+        noiseGain.connect(audioContext.destination);
+        noiseSource.start();
+      };
+    }
+    function createLevelUpSound() {
+      return () => {
+        if (!soundEnabled) return;
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(880, audioContext.currentTime + 0.1);
+        oscillator.frequency.linearRampToValueAtTime(1320, audioContext.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.4, audioContext.currentTime + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.3);
+      };
+    }
+    function createGameOverSound() {
+      return () => {
+        if (!soundEnabled) return;
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(110, audioContext.currentTime + 0.8);
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.01, audioContext.currentTime + 1);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 1);
+      };
+    }
+    const playShootSound = createShootSound();
+    const playExplosionSound = createExplosionSound();
+    const playLevelUpSound = createLevelUpSound();
+    const playGameOverSound = createGameOverSound();
+
+    // 敵設定：レベルに応じたパラメータ（escapePenalty はレベル20のみ true）
+    function getEnemySettingsForLevel(level) {
+      return {
+        spawnRate: Math.max(20, 100 - (level * 8)),
+        speed: 1 + (level * 0.4),
+        shootsBackProbability: (level >= 6) ? (level - 5) * 0.05 : 0,
+        escapePenalty: (level === 20)
+      };
+    }
+    // 敵生成
+    function spawnEnemy() {
+      const enemySettings = getEnemySettingsForLevel(game.level);
+      if (Math.random() * enemySettings.spawnRate < 1) {
+        const randomIndex = Math.floor(Math.random() * enemyImages.length);
+        const chosenImage = enemyImages[randomIndex];
+        const enemy = {
+          x: Math.random() * (canvas.width - 40) + 20,
+          y: -30,
+          width: 40,
+          height: 40,
+          speed: enemySettings.speed,
+          image: chosenImage,
+          shootCooldown: Math.floor(Math.random() * 100) + 30
+        };
+        // レベル3以上なら斜め移動（水平速度 dx を設定）
+        enemy.dx = (game.level >= 3) ? (Math.random() < 0.5 ? -1 : 1) * enemy.speed * 0.5 : 0;
+        enemies.push(enemy);
+      }
+    }
+    // プレイヤー描画
+    function drawPlayer() {
+      ctx.drawImage(playerImage, player.x - player.width/2, player.y - player.height/2, player.width, player.height);
+    }
+    // 弾描画
+    function drawBullets() {
+      ctx.fillStyle = 'yellow';
+      player.bullets.forEach(bullet => {
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, 5, 0, Math.PI*2);
+        ctx.fill();
+      });
+      ctx.fillStyle = 'red';
+      enemyBullets.forEach(bullet => {
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, 4, 0, Math.PI*2);
+        ctx.fill();
+      });
+    }
+    // 敵描画
+    function drawEnemies() {
+      enemies.forEach(enemy => {
+        ctx.drawImage(enemy.image, enemy.x - enemy.width/2, enemy.y - enemy.height/2, enemy.width, enemy.height);
+      });
+    }
+    // 敵移動
+    function moveEnemies() {
+      const enemySettings = getEnemySettingsForLevel(game.level);
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        enemies[i].y += enemies[i].speed;
+        if (enemies[i].dx !== 0) {
+          enemies[i].x += enemies[i].dx;
+          if (enemies[i].x - enemies[i].width/2 < 0) {
+            enemies[i].x = enemies[i].width/2;
+            enemies[i].dx = -enemies[i].dx;
+          }
+          if (enemies[i].x + enemies[i].width/2 > canvas.width) {
+            enemies[i].x = canvas.width - enemies[i].width/2;
+            enemies[i].dx = -enemies[i].dx;
+          }
+        }
+        if (game.level >= 6) {
+          enemies[i].shootCooldown--;
+          if (enemies[i].shootCooldown <= 0 && Math.random() < enemySettings.shootsBackProbability) {
+            enemyBullets.push({
+              x: enemies[i].x,
+              y: enemies[i].y + enemies[i].height/2,
+              speed: 3 + (game.level * 0.3)
+            });
+            enemies[i].shootCooldown = Math.floor(Math.random()*100) + 50;
+          }
+        }
+        // 敵が画面下部に到達した場合、レベル20ならゲームオーバー
+        if (enemies[i].y > canvas.height + 20) {
+          if (enemySettings.escapePenalty) {
+            game.isRunning = false;
+            if (!game.gameOverSoundPlayed) {
+              playGameOverSound();
+              game.gameOverSoundPlayed = true;
+            }
+          }
+          enemies.splice(i, 1);
+        }
+      }
+    }
+    // 弾移動
+    function moveBullets() {
+      for (let i = player.bullets.length - 1; i >= 0; i--) {
+        player.bullets[i].y -= player.bulletSpeed;
+        if (player.bullets[i].y < 0) {
+          player.bullets.splice(i, 1);
+        }
+      }
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        enemyBullets[i].y += enemyBullets[i].speed;
+        if (enemyBullets[i].y > canvas.height) {
+          enemyBullets.splice(i, 1);
+        }
+      }
+    }
+    // 衝突判定
+    function checkCollisions() {
+      // プレイヤー弾 vs 敵
+      for (let i = player.bullets.length - 1; i >= 0; i--) {
+        for (let j = enemies.length - 1; j >= 0; j--) {
+          const bullet = player.bullets[i];
+          const enemy = enemies[j];
+          if (
+            bullet.x < enemy.x + enemy.width/2 &&
+            bullet.x > enemy.x - enemy.width/2 &&
+            bullet.y < enemy.y + enemy.height/2 &&
+            bullet.y > enemy.y - enemy.height/2
+          ) {
+            player.bullets.splice(i, 1);
+            enemies.splice(j, 1);
+            game.score += 10;
+            playExplosionSound();
+            // スコアが100点ごとにレベルアップ（最大レベル20）
+            if (game.score % 100 === 0 && game.level < 20) {
+              game.level++;
+              playLevelUpSound();
+            }
+            break;
+          }
+        }
+      }
+      // 敵弾 vs プレイヤー
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const bullet = enemyBullets[i];
+        if (
+          bullet.x < player.x + player.width/2 &&
+          bullet.x > player.x - player.width/2 &&
+          bullet.y < player.y + player.height/2 &&
+          bullet.y > player.y - player.height/2
+        ) {
+          enemyBullets.splice(i, 1);
+          game.isRunning = false;
+          if (!game.gameOverSoundPlayed) {
+            playGameOverSound();
+            game.gameOverSoundPlayed = true;
+          }
+          break;
+        }
+      }
+      // 敵 vs プレイヤー
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+        if (
+          player.x < enemy.x + enemy.width/2 &&
+          player.x > enemy.x - enemy.width/2 &&
+          player.y < enemy.y + enemy.height/2 &&
+          player.y > enemy.y - enemy.height/2
+        ) {
+          game.isRunning = false;
+          if (!game.gameOverSoundPlayed) {
+            playGameOverSound();
+            game.gameOverSoundPlayed = true;
+          }
+        }
+      }
+    }
+    // ゲーム情報描画
+    function drawInfo() {
+      ctx.fillStyle = 'white';
+      ctx.font = '20px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(`スコア: ${game.score}`, 20, 30);
+      ctx.fillText(`レベル: ${game.level}`, 20, 60);
+    }
+    // 初期化（ゲーム開始時）
+    function initGame() {
+      game.score = 0;
+      game.level = game.initialLevel;
+      game.isRunning = true;
+      game.gameOverSoundPlayed = false;
+      player.x = canvas.width / 2;
+      player.y = canvas.height - 80;
+      player.bullets = [];
+      player.bulletCooldown = 0;
+      enemies = [];
+      enemyBullets = [];
+    }
+    // メインループ
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (game.isRunning) {
+        // PC用キーボード操作
+        if (keys['ArrowLeft'] && player.x > player.width/2) player.x -= player.speed;
+        if (keys['ArrowRight'] && player.x < canvas.width - player.width/2) player.x += player.speed;
+        if (keys['ArrowUp'] && player.y > player.height/2) player.y -= player.speed;
+        if (keys['ArrowDown'] && player.y < canvas.height - player.height/2) player.y += player.speed;
+        if (keys[' ']) fireBullet();
+        if (player.bulletCooldown > 0) player.bulletCooldown--;
+  
+        moveBullets();
+        moveEnemies();
+        spawnEnemy();
+        checkCollisions();
+      }
+      drawPlayer();
+      drawBullets();
+      drawEnemies();
+      drawInfo();
+      if (!game.isRunning) {
+        restartOverlay.style.display = 'block';
+      }
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
+    // ゲーム開始（全画面設定）
+    function startGame() {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      canvas.style.display = "block";
+      startScreen.style.display = 'none';
+      restartOverlay.style.display = 'none';
+      initGame();
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      gameLoop();
+    }
+    // スタートボタン
+    startButton.addEventListener('click', () => {
+      game.initialLevel = parseInt(levelSelect.value);
+      if (!playerImage.complete || !enemyImage1.complete || !enemyImage2.complete || !enemyImage3.complete) {
+        playerImage.onload = enemyImage1.onload = enemyImage2.onload = enemyImage3.onload = () => {
+          startGame();
+        };
+      } else {
+        startGame();
+      }
+    });
+    // リスタートボタン
+    restartButton.addEventListener('click', () => {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+      startScreen.style.display = 'flex';
+      canvas.style.display = 'none';
+      restartOverlay.style.display = 'none';
+    });
+  </script>
+</body>
+</html>

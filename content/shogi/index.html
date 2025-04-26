@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>将棋ゲーム（成り機能厳密版・再成りなし）</title>
+  <style>
+    /* 全体レイアウト */
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #eee;
+    }
+    #container {
+      max-width: 600px; 
+      margin: 0 auto;
+      text-align: center;
+      padding: 10px;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin: 0.5em 0;
+    }
+    #current-turn {
+      margin: 0.5em 0;
+      font-size: 1.2rem;
+    }
+
+    /* 持ち駒エリア */
+    #gote-hand, #sente-hand {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      margin: 10px;
+      flex-wrap: wrap;
+      border: 1px solid #ccc;
+      padding: 5px;
+      min-height: 60px;
+      background-color: #fff;
+    }
+    /* 持ち駒（盤面のセルと同じ60px四方に） */
+    .hand-piece {
+      border: 1px solid #999;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background-color: #fff;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .hand-piece.selected-hand {
+      outline: 2px solid blue;
+    }
+
+    /* 盤面をテーブルで表示 */
+    #board {
+      margin: 10px auto;
+      border: 2px solid #333;
+      background-color: #fff; /* テーブル外枠の背景 */
+      display: inline-block;   /* 中央寄せのため */
+    }
+    table {
+      border-collapse: collapse;
+      table-layout: fixed; /* セル幅固定 */
+    }
+    /* 各セル：60×60ピクセル */
+    td.cell {
+      width: 60px;
+      height: 60px;
+      background-color: #f0d9b5;
+      border: 1px solid #333;
+      text-align: center;
+      vertical-align: middle;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    /* 移動可能マスのハイライト */
+    td.cell.highlight {
+      background-color: #aaf;
+    }
+    /* 選択中のセル */
+    td.cell.selected {
+      outline: 2px solid red;
+    }
+
+    /* 駒のスタイル（盤面、持ち駒共通） */
+    .piece {
+      user-select: none;
+      display: inline-block;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .piece img {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+    /* 後手駒は180度回転 */
+    .gote {
+      transform: rotate(180deg);
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h1>将棋ゲーム（成り機能厳密版・再成りなし）</h1>
+    <div id="current-turn">Turn: sente</div>
+    <!-- 後手の持ち駒（上側） -->
+    <div id="gote-hand">後手持ち駒</div>
+    <!-- 盤面 -->
+    <div id="board">
+      <table id="board-table">
+        <tbody></tbody>
+      </table>
+    </div>
+    <!-- 先手の持ち駒（下側） -->
+    <div id="sente-hand">先手持ち駒</div>
+  </div>
+
+  <script>
+    // 定数・グローバル変数
+    const BOARD_SIZE = 9;
+    let board = []; // 9×9の盤面（nullまたは駒オブジェクト）
+    let currentTurn = "sente"; // "sente"（先手）または "gote"（後手）
+    let senteHand = []; // 先手の持ち駒
+    let goteHand = [];  // 後手の持ち駒
+    let selectedPiece = null;  // 盤上で選択中の駒 { row, col, piece }
+    let legalMoves = [];       // 選択駒の移動可能マス [{row, col}, …]
+    let selectedHandPiece = null; // 持ち駒選択時 { piece, index }
+
+    // 成り可能な駒の種類
+    function canPromote(piece) {
+      return ["Pawn", "Lance", "Knight", "Silver", "Bishop", "Rook"].includes(piece.type);
+    }
+    // 現在のプレイヤーにとっての成りゾーン
+    function isInPromotionZone(piece, row) {
+      if (piece.player === "sente") {
+        return row <= 2; // 上段（0,1,2）
+      } else {
+        return row >= 6; // 下段（6,7,8）
+      }
+    }
+    // 成駒の表示シンボル
+    function getPromotedSymbol(type) {
+      const symbols = {
+        "Pawn": "と",
+        "Lance": "成香",
+        "Knight": "成桂",
+        "Silver": "成銀",
+        "Bishop": "馬",
+        "Rook": "龍"
+      };
+      return symbols[type] || "";
+    }
+
+    // 初期盤面の設定
+    function initBoard() {
+      board = [];
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        const row = [];
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          row.push(null);
+        }
+        board.push(row);
+      }
+      // 【後手】配置
+      board[0][0] = { type: "Lance", player: "gote", promoted: false };
+      board[0][1] = { type: "Knight", player: "gote", promoted: false };
+      board[0][2] = { type: "Silver", player: "gote", promoted: false };
+      board[0][3] = { type: "Gold", player: "gote", promoted: false };
+      board[0][4] = { type: "King", player: "gote", promoted: false };
+      board[0][5] = { type: "Gold", player: "gote", promoted: false };
+      board[0][6] = { type: "Silver", player: "gote", promoted: false };
+      board[0][7] = { type: "Knight", player: "gote", promoted: false };
+      board[0][8] = { type: "Lance", player: "gote", promoted: false };
+      board[1][1] = { type: "Rook", player: "gote", promoted: false };
+      board[1][7] = { type: "Bishop", player: "gote", promoted: false };
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        board[2][c] = { type: "Pawn", player: "gote", promoted: false };
+      }
+      // 【先手】配置
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        board[6][c] = { type: "Pawn", player: "sente", promoted: false };
+      }
+      board[7][1] = { type: "Bishop", player: "sente", promoted: false };
+      board[7][7] = { type: "Rook", player: "sente", promoted: false };
+      board[8][0] = { type: "Lance", player: "sente", promoted: false };
+      board[8][1] = { type: "Knight", player: "sente", promoted: false };
+      board[8][2] = { type: "Silver", player: "sente", promoted: false };
+      board[8][3] = { type: "Gold", player: "sente", promoted: false };
+      board[8][4] = { type: "King", player: "sente", promoted: false };
+      board[8][5] = { type: "Gold", player: "sente", promoted: false };
+      board[8][6] = { type: "Silver", player: "sente", promoted: false };
+      board[8][7] = { type: "Knight", player: "sente", promoted: false };
+      board[8][8] = { type: "Lance", player: "sente", promoted: false };
+    }
+
+    // 駒表示要素の作成
+    function createPieceElement(piece) {
+      const pieceSpan = document.createElement("span");
+      pieceSpan.classList.add("piece");
+      if (piece.player === "gote") {
+        pieceSpan.classList.add("gote");
+      }
+      // 成っている場合はシンボルで表示
+      if (piece.promoted && canPromote(piece)) {
+        pieceSpan.textContent = getPromotedSymbol(piece.type);
+      } else {
+        if (piece.type === "Pawn") {
+          const img = document.createElement("img");
+          if (piece.player === "sente") {
+            img.src = "sotayummy.png";
+            img.alt = "歩(先手)";
+          } else {
+            img.src = "AO.png";
+            img.alt = "歩(後手)";
+          }
+          pieceSpan.appendChild(img);
+        } else {
+          const symbols = {
+            "King": piece.player === "sente" ? "王" : "玉",
+            "Gold": "金",
+            "Silver": "銀",
+            "Knight": "桂",
+            "Lance": "香",
+            "Bishop": "角",
+            "Rook": "飛"
+          };
+          pieceSpan.textContent = symbols[piece.type] || "";
+        }
+      }
+      return pieceSpan;
+    }
+
+    // 盤面を再描画（テーブル方式）
+    function renderBoard() {
+      const boardTableBody = document.getElementById("board-table").querySelector("tbody");
+      boardTableBody.innerHTML = "";
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        const tr = document.createElement("tr");
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const td = document.createElement("td");
+          td.className = "cell";
+          td.dataset.row = r;
+          td.dataset.col = c;
+
+          // 移動可能マスのハイライト
+          if (legalMoves.some(m => m.row === r && m.col === c)) {
+            td.classList.add("highlight");
+          }
+          // 選択中のセル
+          if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) {
+            td.classList.add("selected");
+          }
+
+          const piece = board[r][c];
+          if (piece) {
+            const pieceEl = createPieceElement(piece);
+            td.appendChild(pieceEl);
+          }
+          // イベントリスナー
+          td.addEventListener("click", onCellClick);
+          tr.appendChild(td);
+        }
+        boardTableBody.appendChild(tr);
+      }
+    }
+
+    // 持ち駒の再描画
+    function renderHands() {
+      const senteHandDiv = document.getElementById("sente-hand");
+      const goteHandDiv = document.getElementById("gote-hand");
+      senteHandDiv.innerHTML = "先手持ち駒: ";
+      goteHandDiv.innerHTML = "後手持ち駒: ";
+
+      // 先手持ち駒
+      senteHand.forEach((piece, index) => {
+        const handPieceDiv = document.createElement("div");
+        handPieceDiv.className = "hand-piece";
+        if (selectedHandPiece && selectedHandPiece.index === index && currentTurn === "sente") {
+          handPieceDiv.classList.add("selected-hand");
+        }
+        handPieceDiv.dataset.index = index;
+        handPieceDiv.addEventListener("click", function(e) {
+          e.stopPropagation();
+          onHandPieceClick(piece, index, "sente");
+        });
+        const pieceEl = createPieceElement(piece);
+        handPieceDiv.appendChild(pieceEl);
+        senteHandDiv.appendChild(handPieceDiv);
+      });
+
+      // 後手持ち駒
+      goteHand.forEach((piece, index) => {
+        const handPieceDiv = document.createElement("div");
+        handPieceDiv.className = "hand-piece";
+        if (selectedHandPiece && selectedHandPiece.index === index && currentTurn === "gote") {
+          handPieceDiv.classList.add("selected-hand");
+        }
+        handPieceDiv.dataset.index = index;
+        handPieceDiv.addEventListener("click", function(e) {
+          e.stopPropagation();
+          onHandPieceClick(piece, index, "gote");
+        });
+        const pieceEl = createPieceElement(piece);
+        handPieceDiv.appendChild(pieceEl);
+        goteHandDiv.appendChild(handPieceDiv);
+      });
+
+      document.getElementById("current-turn").textContent = "Turn: " + currentTurn;
+    }
+
+    // 成り処理（再成り禁止）
+    function checkPromotion(fromRow, toRow, piece) {
+      // すでに成っている駒は再成りできない
+      if (piece.promoted) return;
+      if (!canPromote(piece)) return;
+      if (isInPromotionZone(piece, fromRow) || isInPromotionZone(piece, toRow)) {
+        let mandatory = false;
+        // Pawn, Lance の場合、最前列なら必須
+        if ((piece.type === "Pawn" || piece.type === "Lance") &&
+            ((piece.player === "sente" && toRow === 0) || (piece.player === "gote" && toRow === BOARD_SIZE - 1))) {
+          mandatory = true;
+        }
+        // Knight の場合、先手は row<=1、後手は row>=BOARD_SIZE-2 なら必須
+        if (piece.type === "Knight" &&
+            ((piece.player === "sente" && toRow <= 1) || (piece.player === "gote" && toRow >= BOARD_SIZE - 2))) {
+          mandatory = true;
+        }
+        if (mandatory) {
+          piece.promoted = true;
+        } else {
+          if (confirm("成りますか？")) {
+            piece.promoted = true;
+          }
+        }
+      }
+    }
+
+    // 移動可能マス計算（成り後の動きを含む）
+    function getLegalMoves(piece, row, col) {
+      const moves = [];
+      const forward = piece.player === "sente" ? -1 : 1;
+      function inBounds(r, c) {
+        return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+      }
+      function tryAdd(r, c) {
+        if (!inBounds(r, c)) return;
+        const target = board[r][c];
+        if (!target || target.player !== piece.player) {
+          moves.push({ row: r, col: c });
+        }
+      }
+      // 成っている場合の動き（歩・香・桂・銀 => 金、飛 => 龍、角 => 馬）
+      if (piece.promoted && ["Pawn", "Lance", "Knight", "Silver"].includes(piece.type)) {
+        // 金と同じ動き
+        tryAdd(row + forward, col);
+        tryAdd(row + forward, col - 1);
+        tryAdd(row + forward, col + 1);
+        tryAdd(row, col - 1);
+        tryAdd(row, col + 1);
+        tryAdd(row - forward, col);
+        return moves;
+      }
+      if (piece.promoted && piece.type === "Rook") {
+        // 飛車の直線移動 + 斜め1マス
+        const straightDirs = [[-1,0], [1,0], [0,-1], [0,1]];
+        straightDirs.forEach(d => {
+          let r2 = row + d[0], c2 = col + d[1];
+          while (inBounds(r2, c2)) {
+            if (board[r2][c2]) {
+              if (board[r2][c2].player !== piece.player) {
+                moves.push({ row: r2, col: c2 });
+              }
+              break;
+            } else {
+              moves.push({ row: r2, col: c2 });
+            }
+            r2 += d[0];
+            c2 += d[1];
+          }
+        });
+        // 斜めの１マス
+        [[-1,-1], [-1,1], [1,-1], [1,1]].forEach(d => {
+          const r2 = row + d[0], c2 = col + d[1];
+          if (inBounds(r2, c2)) {
+            const target = board[r2][c2];
+            if (!target || target.player !== piece.player) {
+              moves.push({ row: r2, col: c2 });
+            }
+          }
+        });
+        return moves;
+      }
+      if (piece.promoted && piece.type === "Bishop") {
+        // 角行の斜め移動 + 上下左右1マス
+        const diagDirs = [[-1,-1], [-1,1], [1,-1], [1,1]];
+        diagDirs.forEach(d => {
+          let r2 = row + d[0], c2 = col + d[1];
+          while (inBounds(r2, c2)) {
+            if (board[r2][c2]) {
+              if (board[r2][c2].player !== piece.player) {
+                moves.push({ row: r2, col: c2 });
+              }
+              break;
+            } else {
+              moves.push({ row: r2, col: c2 });
+            }
+            r2 += d[0];
+            c2 += d[1];
+          }
+        });
+        // 上下左右1マス
+        [[-1,0], [1,0], [0,-1], [0,1]].forEach(d => {
+          const r2 = row + d[0], c2 = col + d[1];
+          if (inBounds(r2, c2)) {
+            const target = board[r2][c2];
+            if (!target || target.player !== piece.player) {
+              moves.push({ row: r2, col: c2 });
+            }
+          }
+        });
+        return moves;
+      }
+
+      // 非成駒の通常ルール
+      switch(piece.type) {
+        case "King":
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (dr === 0 && dc === 0) continue;
+              tryAdd(row + dr, col + dc);
+            }
+          }
+          break;
+        case "Gold":
+          tryAdd(row + forward, col);
+          tryAdd(row + forward, col - 1);
+          tryAdd(row + forward, col + 1);
+          tryAdd(row, col - 1);
+          tryAdd(row, col + 1);
+          tryAdd(row - forward, col);
+          break;
+        case "Silver":
+          tryAdd(row + forward, col);
+          tryAdd(row + forward, col - 1);
+          tryAdd(row + forward, col + 1);
+          tryAdd(row - forward, col - 1);
+          tryAdd(row - forward, col + 1);
+          break;
+        case "Knight":
+          tryAdd(row + 2 * forward, col - 1);
+          tryAdd(row + 2 * forward, col + 1);
+          break;
+        case "Lance":
+          for (let r2 = row + forward; inBounds(r2, col); r2 += forward) {
+            if (board[r2][col]) {
+              if (board[r2][col].player !== piece.player) {
+                moves.push({ row: r2, col: col });
+              }
+              break;
+            } else {
+              moves.push({ row: r2, col: col });
+            }
+          }
+          break;
+        case "Pawn":
+          tryAdd(row + forward, col);
+          break;
+        case "Bishop":
+          const diagDirs2 = [[-1,-1], [-1,1], [1,-1], [1,1]];
+          diagDirs2.forEach(d => {
+            let r2 = row + d[0], c2 = col + d[1];
+            while (inBounds(r2, c2)) {
+              if (board[r2][c2]) {
+                if (board[r2][c2].player !== piece.player) {
+                  moves.push({ row: r2, col: c2 });
+                }
+                break;
+              } else {
+                moves.push({ row: r2, col: c2 });
+              }
+              r2 += d[0];
+              c2 += d[1];
+            }
+          });
+          break;
+        case "Rook":
+          const straightDirs2 = [[-1,0], [1,0], [0,-1], [0,1]];
+          straightDirs2.forEach(d => {
+            let r2 = row + d[0], c2 = col + d[1];
+            while (inBounds(r2, c2)) {
+              if (board[r2][c2]) {
+                if (board[r2][c2].player !== piece.player) {
+                  moves.push({ row: r2, col: c2 });
+                }
+                break;
+              } else {
+                moves.push({ row: r2, col: c2 });
+              }
+              r2 += d[0];
+              c2 += d[1];
+            }
+          });
+          break;
+        default:
+          break;
+      }
+      return moves;
+    }
+
+    // 盤上セルクリック時の処理
+    function onCellClick(e) {
+      const td = e.currentTarget;
+      const r = parseInt(td.dataset.row);
+      const c = parseInt(td.dataset.col);
+
+      // 持ち駒打指モード
+      if (selectedHandPiece) {
+        if (!board[r][c]) {
+          if (isDropLegal(selectedHandPiece.piece, r, c)) {
+            board[r][c] = selectedHandPiece.piece;
+            if (currentTurn === "sente") {
+              senteHand.splice(selectedHandPiece.index, 1);
+            } else {
+              goteHand.splice(selectedHandPiece.index, 1);
+            }
+            selectedHandPiece = null;
+            toggleTurn();
+            renderBoard();
+            renderHands();
+          } else {
+            alert("この場所にはこの駒を打てません。");
+          }
+        }
+        return;
+      }
+
+      const clickedPiece = board[r][c];
+      if (selectedPiece) {
+        if (legalMoves.some(m => m.row === r && m.col === c)) {
+          // 捕獲の場合、捕獲した駒は未成状態にリセット
+          if (board[r][c] && board[r][c].player !== currentTurn) {
+            let captured = board[r][c];
+            captured.promoted = false;
+            captured.player = currentTurn;
+            if (currentTurn === "sente") {
+              senteHand.push(captured);
+            } else {
+              goteHand.push(captured);
+            }
+          }
+          // 成り処理
+          checkPromotion(selectedPiece.row, r, selectedPiece.piece);
+          board[r][c] = selectedPiece.piece;
+          board[selectedPiece.row][selectedPiece.col] = null;
+          selectedPiece = null;
+          legalMoves = [];
+          toggleTurn();
+          renderBoard();
+          renderHands();
+          return;
+        } else {
+          selectedPiece = null;
+          legalMoves = [];
+          renderBoard();
+          return;
+        }
+      }
+      // 盤上の自分の駒をクリックした場合に選択
+      if (clickedPiece && clickedPiece.player === currentTurn) {
+        selectedPiece = { row: r, col: c, piece: clickedPiece };
+        legalMoves = getLegalMoves(clickedPiece, r, c);
+        renderBoard();
+      }
+    }
+
+    // 持ち駒クリック時の処理（打指モード）
+    function onHandPieceClick(piece, index, handOwner) {
+      if (currentTurn !== handOwner) return;
+      if (selectedHandPiece && selectedHandPiece.index === index) {
+        selectedHandPiece = null;
+      } else {
+        selectedHandPiece = { piece: piece, index: index };
+        selectedPiece = null;
+        legalMoves = [];
+      }
+      renderHands();
+      renderBoard();
+    }
+
+    // 打指の合法性判定
+    function isDropLegal(piece, row, col) {
+      if (board[row][col]) return false;
+      if (piece.type === "Pawn") {
+        // 二歩チェック
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          const target = board[r][col];
+          if (target && target.player === currentTurn && target.type === "Pawn") {
+            return false;
+          }
+        }
+        // 最前列に打てない
+        if (currentTurn === "sente" && row === 0) return false;
+        if (currentTurn === "gote" && row === BOARD_SIZE - 1) return false;
+      }
+      if (piece.type === "Knight") {
+        // 桂馬は最前列付近には打てない
+        if (currentTurn === "sente" && row < 2) return false;
+        if (currentTurn === "gote" && row > BOARD_SIZE - 3) return false;
+      }
+      if (piece.type === "Lance") {
+        // 香車は最前列に打てない
+        if (currentTurn === "sente" && row === 0) return false;
+        if (currentTurn === "gote" && row === BOARD_SIZE - 1) return false;
+      }
+      return true;
+    }
+
+    // 手番交代
+    function toggleTurn() {
+      currentTurn = currentTurn === "sente" ? "gote" : "sente";
+      selectedPiece = null;
+      legalMoves = [];
+      selectedHandPiece = null;
+    }
+
+    // 初期化＆描画
+    initBoard();
+    renderBoard();
+    renderHands();
+  </script>
+</body>
+</html>
