@@ -67,9 +67,9 @@
     #about .about-text p { margin-bottom: 1.5rem; font-size: 1.1rem; }
     /* Footer */
     footer { background-color: var(--primary-color); color: #fff; padding: 2rem 0; text-align: center; }
-    footer nav ul { justify-content: center; flex-wrap: wrap; }
+    footer nav ul { justify-content: center; flex-wrap: wrap; display: flex; list-style: none; }
     footer nav li { margin: 0 1rem; }
-    footer a { color: #fff; text-decoration: none; }
+    footer a { color: #fff; text-decoration: none; font-weight: 500; }
     footer p { margin-top: 1.5rem; font-size: 0.9rem; }
     /* Responsive */
     @media (max-width: 768px) {
@@ -86,10 +86,11 @@
           <li><a href="#hero">Home</a></li>
           <li><a href="#about">About</a></li>
           <li><a href="#portfolio-preview">Portfolio</a></li>
-          <li><a href="#contact">Contact</a></li>
+          <li><a href="contact/">Contact</a></li>
         </ul>
       </nav>
-      <a href="#contact" class="cta-btn">Contact</a>
+      <!-- CTA ボタンも外部リンクに -->
+      <a href="contact/" class="cta-btn">Contact</a>
     </div>
   </header>
 
@@ -98,7 +99,8 @@
       <h1>Design. Code. Inspire.</h1>
       <p>Welcome to aiosoratech - Crafting elegant web experiences.</p>
       <a href="#portfolio-preview" class="btn btn-primary">View Portfolio</a>
-      <a href="#contact" class="btn btn-outline">Contact Me</a>
+      <!-- ヒーローの Contact Me ボタン -->
+      <a href="contact/" class="btn btn-outline">Contact Me</a>
     </div>
   </section>
 
@@ -118,7 +120,7 @@
 
   <section id="about">
     <div class="container">
-      <img src="profile.jpg" alt="Your Name">
+      <img src="images/profile.jpg" alt="Your Name">
       <div class="about-text">
         <h2>About Me</h2>
         <p>I’m a Web Developer & Designer passionate about IT, digital technology, and AI. As a father of two, I combine creativity with practical problem-solving to build intuitive and engaging web experiences.</p>
@@ -134,7 +136,7 @@
           <li><a href="#hero">Home</a></li>
           <li><a href="#about">About</a></li>
           <li><a href="#portfolio-preview">Portfolio</a></li>
-          <li><a href="#contact">Contact</a></li>
+          <li><a href="contact/">Contact</a></li>
         </ul>
       </nav>
       <div class="social">
