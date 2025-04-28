@@ -71,13 +71,18 @@
   }
 
   function resize(){
-    width = window.innerWidth; height = window.innerHeight;
-    canvas.width = width; canvas.height = height;
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
     initGame();
   }
 
   function initGame(){
-    invaderDir = level; score = 0; gameOver = false; bullets = [];
+    invaderDir = level;
+    score = 0;
+    gameOver = false;
+    bullets = [];
 
     invaderW = Math.min(width * 0.08, 40);
     invaderH = invaderW;
@@ -85,22 +90,32 @@
     let gridWidth = invaderCols * invaderW + (invaderCols - 1) * invaderPadding;
     if(gridWidth > width * 0.9){
       invaderW = (width * 0.9) / (invaderCols + (invaderCols - 1) * 0.4);
-      invaderH = invaderW; invaderPadding = invaderW * 0.4;
+      invaderH = invaderW;
+      invaderPadding = invaderW * 0.4;
       gridWidth = invaderCols * invaderW + (invaderCols - 1) * invaderPadding;
     }
     invaderOffsetLeft = (width - gridWidth)/2 + invaderW/2;
     invaderOffsetTop = height * 0.1 + invaderH/2;
 
-    // Adjust player position above controls
-    const ctrlHeight = document.getElementById('controls').offsetHeight + 10;
-    player = { x: width/2, y: height - ctrlHeight - invaderH/2, w: invaderW, h: invaderH, speed: invaderW*0.1 };
+    // Adjust player position well above controls
+    const ctrlHeight = document.getElementById('controls').offsetHeight;
+    const extraMargin = invaderH * 0.5;  // additional space
+    player = {
+      x: width/2,
+      y: height - ctrlHeight - invaderH - extraMargin,
+      w: invaderW,
+      h: invaderH,
+      speed: invaderW*0.1
+    };
 
-    // spawn invaders
     invaders = [];
     for(let r=0; r<invaderRows; r++){
       for(let c=0; c<invaderCols; c++){
         invaders.push({ x: invaderOffsetLeft + c*(invaderW+invaderPadding),
-                        y: invaderOffsetTop + r*(invaderH+invaderPadding), w: invaderW, h: invaderH, alive: true });
+                        y: invaderOffsetTop + r*(invaderH+invaderPadding),
+                        w: invaderW,
+                        h: invaderH,
+                        alive: true });
       }
     }
   }
