@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>AO.pngとWeb AudioサウンドのTetris</title>
+  <style>
+    body {
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    #game {
+      border: 2px solid #fff;
+      display: block;
+      margin: 20px auto;
+      background-color: #000;
+    }
+    #score {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    /* 初回クリック用オーバーレイ */
+    #startOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      z-index: 10;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="startOverlay">クリックしてスタート！</div>
+  <h1>Tetris</h1>
+  <canvas id="game" width="300" height="600"></canvas>
+  <div id="score">Score: 0</div>
+
+  <script>
+    // ======== Web Audio の設定 ========
+    let audioCtx;
+    let isAudioInitialized = false;
+    // 背景音楽のメロディ（各ノートの周波数：C, D, E, G, E, D）
+    const melody = [261.63, 293.66, 329.63, 392.00, 329.63, 293.66];
+    let currentNoteIndex = 0;
+    
+    // AudioContext の初期化（ユーザー操作で開始）
+    function initAudio() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      isAudioInitialized = true;
+      playMelody();
+    }
+    
+    // 指定した周波数、duration（秒）の音を再生する
+    function playNote(frequency, duration) {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + duration);
+    }
+    
+    // メロディをループ再生する再帰的な関数
+    function playMelody() {
+      if (!isAudioInitialized) return;
+      playNote(melody[currentNoteIndex], 0.5);
+      currentNoteIndex = (currentNoteIndex + 1) % melody.length;
+      setTimeout(playMelody, 500);
+    }
+    
+    // ライン消去時の効果音（880Hz の短い音）
+    function playLineClearSound() {
+      if (!isAudioInitialized) return;
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.3);
+    }
+    
+    // ======== Tetris ゲームの設定 ========
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    
+    const COLS = 10;   // 横マス数
+    const ROWS = 20;   // 縦マス数
+    const GRID = 30;   // 1マスのピクセルサイズ
+    
+    // ブロック用画像（AO.png を配置）
+    const blockImage = new Image();
+    blockImage.src = 'AO.png';
+    
+    let board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    
+    // テトリミノ定義（I, O, T, S, Z, J, L）
+    const SHAPES = [
+      [[1,1,1,1]],            // I
+      [[2,2],[2,2]],          // O
+      [[0,3,0],[3,3,3]],      // T
+      [[0,4,4],[4,4,0]],      // S
+      [[5,5,0],[0,5,5]],      // Z
+      [[6,0,0],[6,6,6]],      // J
+      [[0,0,7],[7,7,7]]       // L
+    ];
+    
+    let currentShape = null;
+    let currentX = 0;
+    let currentY = 0;
+    
+    let score = 0;
+    
+    function newShape() {
+      const id = Math.floor(Math.random() * SHAPES.length);
+      currentShape = SHAPES[id];
+      currentX = Math.floor(COLS / 2) - Math.floor(currentShape[0].length / 2);
+      currentY = 0;
+    }
+    
+    // ミノの衝突判定
+    function collision(x, y, shape) {
+      for (let r = 0; r < shape.length; r++) {
+        for (let c = 0; c < shape[r].length; c++) {
+          if (shape[r][c] !== 0) {
+            let nx = x + c;
+            let ny = y + r;
+            if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+            if (ny >= 0 && board[ny][nx] !== 0) return true;
+          }
+        }
+      }
+      return false;
+    }
+    
+    // ミノの回転（90度）
+    function rotate(shape) {
+      const rows = shape.length;
+      const cols = shape[0].length;
+      let newShape = [];
+      for (let c = 0; c < cols; c++) {
+        newShape[c] = [];
+        for (let r = 0; r < rows; r++) {
+          newShape[c][r] = shape[rows - 1 - r][c];
+        }
+      }
+      return newShape;
+    }
+    
+    // ミノを固定し、ライン消去
+    function freeze() {
+      for (let r = 0; r < currentShape.length; r++) {
+        for (let c = 0; c < currentShape[r].length; c++) {
+          if (currentShape[r][c] !== 0) {
+            board[currentY + r][currentX + c] = currentShape[r][c];
+          }
+        }
+      }
+      clearLines();
+      newShape();
+    }
+    
+    // ライン消去と効果音再生
+    function clearLines() {
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r].every(cell => cell !== 0)) {
+          for (let nr = r; nr > 0; nr--) {
+            board[nr] = board[nr - 1].slice();
+          }
+          board[0] = Array(COLS).fill(0);
+          score += 10;
+          document.getElementById('score').textContent = 'Score: ' + score;
+          playLineClearSound();
+          r++; // 同じ行を再チェック
+        }
+      }
+    }
+    
+    function isGameOver() {
+      return board[0].some(cell => cell !== 0);
+    }
+    
+    // 描画
+    function drawBoard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // 固定ブロック
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (board[r][c] !== 0) {
+            ctx.drawImage(blockImage, c * GRID, r * GRID, GRID, GRID);
+          }
+        }
+      }
+      // 現在操作中のミノ
+      if (currentShape) {
+        for (let r = 0; r < currentShape.length; r++) {
+          for (let c = 0; c < currentShape[r].length; c++) {
+            if (currentShape[r][c] !== 0) {
+              ctx.drawImage(blockImage, (currentX + c) * GRID, (currentY + r) * GRID, GRID, GRID);
+            }
+          }
+        }
+      }
+    }
+    
+    let dropStart = Date.now();
+    let dropInterval = 1000;
+    
+    // ゲームループ
+    function update() {
+      const now = Date.now();
+      const delta = now - dropStart;
+      if (delta > dropInterval) {
+        if (!collision(currentX, currentY + 1, currentShape)) {
+          currentY++;
+        } else {
+          freeze();
+          if (isGameOver()) {
+            alert('Game Over! Score: ' + score);
+            resetGame();
+          }
+        }
+        dropStart = Date.now();
+      }
+      drawBoard();
+      requestAnimationFrame(update);
+    }
+    
+    function resetGame() {
+      board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+      score = 0;
+      document.getElementById('score').textContent = 'Score: ' + score;
+      newShape();
+    }
+    
+    document.addEventListener('keydown', e => {
+      if (!currentShape) return;
+      switch (e.key) {
+        case 'ArrowLeft':
+          if (!collision(currentX - 1, currentY, currentShape)) currentX--;
+          break;
+        case 'ArrowRight':
+          if (!collision(currentX + 1, currentY, currentShape)) currentX++;
+          break;
+        case 'ArrowDown':
+          if (!collision(currentX, currentY + 1, currentShape)) currentY++;
+          break;
+        case 'ArrowUp':
+          const rotated = rotate(currentShape);
+          if (!collision(currentX, currentY, rotated)) currentShape = rotated;
+          break;
+      }
+    });
+    
+    // 初回クリックで AudioContext 初期化
+    document.getElementById('startOverlay').addEventListener('click', () => {
+      if (!isAudioInitialized) initAudio();
+      document.getElementById('startOverlay').style.display = 'none';
+    });
+    
+    blockImage.onload = () => {
+      newShape();
+      update();
+    };
+  </script>
+</body>
+</html>

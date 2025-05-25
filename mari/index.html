@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>マリオ風ゲーム</title>
+<style>
+  body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: sans-serif;} /* 空色背景とフォント設定 */
+  canvas { display: block; background-color: #4682B4; /* 地面の色 */ margin: 0 auto; }
+
+  #gameOverMessage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 6vw; /* 画面幅に対する相対サイズ */
+    color: red;
+    display: none; /* 最初は非表示 */
+    z-index: 10;
+    text-align: center;
+    user-select: none; /* テキスト選択を無効化 */
+  }
+
+  #restartButton {
+    position: absolute;
+    top: 65%; /* メッセージの下に配置 */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3vw; /* 画面幅に対する相対サイズ */
+    padding: 1vh 2vw; /* 画面サイズに対する相対パディング */
+    cursor: pointer;
+    display: none; /* 最初は非表示 */
+    z-index: 10;
+    user-select: none; /* テキスト選択を無効化 */
+  }
+
+  #scoreDisplay {
+    position: absolute;
+    top: 1vh; /* 画面高さに対する相対位置 */
+    left: 1vw; /* 画面幅に対する相対位置 */
+    font-size: 4vw; /* 画面幅に対する相対サイズ */
+    color: white;
+    z-index: 10;
+    user-select: none; /* テキスト選択を無効化 */
+  }
+
+  #controls {
+    position: absolute;
+    bottom: 2vh; /* 画面高さに対する相対位置 */
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    z-index: 10;
+  }
+
+  .control-button {
+    width: 12vw; /* 画面幅に対する相対サイズ */
+    height: 12vw; /* 画面幅に対する相対サイズ */
+    max-width: 80px; /* 最大サイズを設定 */
+    max-height: 80px; /* 最大サイズを設定 */
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.5); /* 半透明の白 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 5vw; /* 画面幅に対する相対サイズ */
+    user-select: none; /* テキスト選択を無効化 */
+    -webkit-tap-highlight-color: rgba(0,0,0,0); /* タップ時のハイライトを無効化 */
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<div id="gameOverMessage">ゲームオーバー！</div>
+<button id="restartButton">リスタート</button>
+<div id="scoreDisplay">スコア: 0</div>
+
+<div id="controls">
+  <div class="control-button" id="leftButton">←</div>
+  <div class="control-button" id="jumpButton">ジャンプ</div>
+  <div class="control-button" id="rightButton">→</div>
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const gameOverMessage = document.getElementById('gameOverMessage');
+  const restartButton = document.getElementById('restartButton');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const leftButton = document.getElementById('leftButton');
+  const jumpButton = document.getElementById('jumpButton');
+  const rightButton = document.getElementById('rightButton');
+
+  const referenceWidth = 800; // スケーリングの基準となる画面幅
+  let scale = 1; // スケーリングファクター
+
+  let characterImage = new Image();
+  characterImage.src = 'AO.png'; // キャラクター画像
+
+  let kaijuImage = new Image();
+  kaijuImage.src = 'kaiju.png'; // 敵キャラクター画像
+
+  let character = {
+    x: 0, // 初期X座標は後で設定
+    y: 0, // 初期Y座標は後で設定
+    baseWidth: 50, // 基準サイズ
+    baseHeight: 50, // 基準サイズ
+    width: 0, // スケール後のサイズ
+    height: 0, // スケール後のサイズ
+    dx: 0, // 横方向の速度
+    baseSpeed: 5, // 基準速度
+    speed: 0, // スケール後の速度
+    dy: 0, // 垂直方向の速度
+    baseGravity: 0.6, // 基準重力
+    gravity: 0, // スケール後の重力
+    baseJumpPower: -12, // 基準ジャンプ力
+    jumpPower: 0, // スケール後のジャンプ力
+    isJumping: false,
+    prevY: 0 // 前のフレームのY座標 (衝突判定用)
+  };
+
+  let obstacles = []; // 敵と障害物をまとめて管理
+  let baseObstacleSpeed = 3; // 基準障害物移動速度
+  let obstacleSpeed = 0; // スケール後の速度
+  let gameOver = false;
+  let score = 0;
+  let obstacleInterval; // 障害物生成の間隔を管理する変数
+  let gameFrame = 0; // ゲームのフレーム数 (難易度上昇に使用)
+  const groundHeight = 20; // 地面の高さ (固定)
+
+
+  // サウンド設定
+  const jumpSynth = new Tone.Synth().toDestination();
+  const collisionSynth = new Tone.Synth({
+    oscillator: { type: "triangle" },
+    envelope: {
+      attack: 0.01,
+      decay: 0.1,
+      sustain: 0.1,
+      release: 0.5
+    }
+  }).toDestination();
+
+   const defeatSynth = new Tone.Synth({ // 敵を倒した時の音
+    oscillator: { type: "sine" },
+    envelope: {
+      attack: 0.01,
+      decay: 0.1,
+      sustain: 0.1,
+      release: 0.3
+    }
+  }).toDestination();
+
+
+  // 画像が両方とも読み込まれてからゲームを開始
+  let imagesLoaded = 0;
+  const totalImages = 2;
+
+  function startGame() {
+      imagesLoaded++;
+      if (imagesLoaded === totalImages) {
+          // 初期設定とゲームループ開始
+          setupGame();
+          gameLoop();
+          // 一定間隔で障害物を生成
+          obstacleInterval = setInterval(createObstacle, 1500 * scale); // スケールに合わせて間隔調整
+      }
+  }
+
+  characterImage.onload = startGame;
+  kaijuImage.onload = startGame;
+
+  // 画像読み込みエラーハンドリング
+  characterImage.onerror = () => { console.error("キャラクター画像の読み込みに失敗しました: AO.png"); };
+  kaijuImage.onerror = () => { console.error("敵キャラクター画像の読み込みに失敗しました: kaiju.png"); };
+
+
+  function setupGame() {
+      // キャンバスサイズ設定
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      // スケーリングファクター計算
+      scale = canvas.width / referenceWidth;
+
+      // キャラクターのサイズと速度をスケール
+      character.width = character.baseWidth * scale;
+      character.height = character.baseHeight * scale;
+      character.speed = character.baseSpeed * scale;
+      character.gravity = character.baseGravity * scale;
+      character.jumpPower = character.baseJumpPower * scale;
+
+      // キャラクターの初期位置を地面に設定
+      character.x = 50 * scale;
+      character.y = canvas.height - character.height - groundHeight;
+
+      // 障害物速度をスケール
+      obstacleSpeed = baseObstacleSpeed * scale;
+
+      // ゲームオーバーメッセージとリスタートボタンの位置調整
+      gameOverMessage.style.top = '50%';
+      gameOverMessage.style.left = '50%';
+      gameOverMessage.style.transform = 'translate(-50%, -50%)';
+      restartButton.style.top = '65%';
+      restartButton.style.left = '50%';
+      restartButton.style.transform = 'translate(-50%, -50%)';
+  }
+
+
+  function drawCharacter() {
+    if (characterImage.complete) {
+      ctx.drawImage(characterImage, character.x, character.y, character.width, character.height);
+    }
+  }
+
+  function createObstacle() {
+    if (gameOver) return; // ゲームオーバーなら障害物を生成しない
+
+    const type = Math.random() > 0.5 ? 'enemy' : 'block'; // ランダムで敵かブロックを生成 (タイプは保持)
+
+    let obstacle;
+    if (type === 'enemy') {
+      const enemyBaseSize = 60;
+      obstacle = {
+        x: canvas.width, // 画面右端から出現
+        y: canvas.height - (enemyBaseSize * scale) - groundHeight + (10 * scale), // 地面の上に配置 (敵の高さに合わせて調整)
+        width: enemyBaseSize * scale, // 敵画像のサイズに合わせて調整
+        height: enemyBaseSize * scale, // 敵画像のサイズに合わせて調整
+        speed: obstacleSpeed + gameFrame * 0.0005 * scale, // 時間経過で速度上昇 (スケール考慮)
+        type: 'enemy'
+      };
+    } else { // block type, but will use kaiju image
+       const blockBaseWidth = 40; // ブロックは小さめのサイズに
+       const blockBaseHeight = 40;
+       obstacle = {
+        x: canvas.width, // 画面右端から出現
+        y: canvas.height - groundHeight - (blockBaseHeight * scale) - Math.random() * (50 * scale), // 地面より少し上、ランダムな高さ
+        width: blockBaseWidth * scale,
+        height: blockBaseHeight * scale,
+        speed: obstacleSpeed + gameFrame * 0.0005 * scale, // 時間経過で速度上昇 (スケール考慮)
+        type: 'block' // タイプはblockのまま
+      };
+    }
+    obstacles.push(obstacle);
+  }
+
+  function drawObstacles() {
+    // 地面を描画
+    ctx.fillStyle = '#A0522D'; // 地面の色 (茶色)
+    ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight); // 地面の高さ
+
+    obstacles.forEach(obstacle => {
+      // 障害物のタイプに関わらず怪獣画像を描画
+      if (kaijuImage.complete) {
+         ctx.drawImage(kaijuImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      }
+    });
+  }
+
+  function updateGame() {
+    if (gameOver) return; // ゲームオーバーなら更新しない
+
+    gameFrame++; // フレーム数をカウント
+
+    // スコア更新
+    score += 0.1; // 時間経過でスコア増加
+    scoreDisplay.textContent = 'スコア: ' + Math.floor(score);
+
+    // 前のフレームのキャラクター位置を保存
+    character.prevY = character.y;
+
+    // キャラクターの横移動
+    character.x += character.dx;
+
+    // 画面左端の境界
+    if (character.x < 0) {
+      character.x = 0;
+    }
+    // 画面右端の境界 (画面の幅に合わせて調整)
+     if (character.x + character.width > canvas.width) {
+       character.x = canvas.width - character.width;
+     }
+
+
+    // 重力適用
+    character.dy += character.gravity;
+    character.y += character.dy;
+
+    // 地面との衝突判定
+    if (character.y + character.height > canvas.height - groundHeight) { // 地面の高さを考慮
+      character.y = canvas.height - character.height - groundHeight; // 地面に固定
+      character.dy = 0; // 速度をゼロに
+      character.isJumping = false; // ジャンプ終了
+    }
+
+    // 障害物の更新
+    obstacles.forEach(obstacle => {
+      obstacle.x -= obstacle.speed; // 障害物を左に移動
+    });
+
+    // 画面外に出た障害物を削除
+    obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
+
+    // 衝突判定
+    checkCollisions();
+  }
+
+  function checkCollisions() {
+    obstacles.forEach((obstacle, index) => {
+      // AABB (Axis-Aligned Bounding Box) 衝突判定
+      if (character.x < obstacle.x + obstacle.width &&
+          character.x + character.width > obstacle.x &&
+          character.y < obstacle.y + obstacle.height &&
+          character.y + character.height > obstacle.y) {
+
+        // 衝突した場合 (障害物のタイプに関わらず同じ衝突処理)
+        if (character.prevY + character.height <= obstacle.y) {
+            // 障害物の上に着地した場合 (倒す/乗る)
+            defeatSynth.triggerAttackRelease("E4", "16n"); // 倒した音
+            obstacles.splice(index, 1); // 障害物を削除 (今回は倒せる仕様に統一)
+            score += 100; // スコア加算
+            character.dy = -5 * scale; // 少し跳ねる (スケール考慮)
+        } else {
+            // 横または下からの衝突 (ゲームオーバー)
+            endGame();
+            collisionSynth.triggerAttackRelease("C3", "8n"); // 衝突音
+        }
+      }
+    });
+  }
+
+  function endGame() {
+      gameOver = true;
+      gameOverMessage.style.display = 'block'; // ゲームオーバーメッセージを表示
+      restartButton.style.display = 'block'; // リスタートボタンを表示
+      clearInterval(obstacleInterval); // 障害物生成を停止
+  }
+
+  function restartGame() {
+      gameOver = false;
+      gameOverMessage.style.display = 'none'; // ゲームオーバーメッセージを非表示
+      restartButton.style.display = 'none'; // リスタートボタンを非表示
+      obstacles = []; // 障害物をリセット
+      score = 0; // スコアをリセット
+      gameFrame = 0; // フレーム数をリセット
+      obstacleSpeed = baseObstacleSpeed * scale; // 障害物速度をリセット (スケール考慮)
+      
+      // キャラクター位置と状態をリセット
+      character.x = 50 * scale; // スケール考慮
+      character.y = canvas.height - character.height - groundHeight; // 地面の上に配置
+      character.dx = 0;
+      character.dy = 0;
+      character.isJumping = false;
+
+      obstacleInterval = setInterval(createObstacle, 1500 * scale); // 障害物生成を再開 (スケール考慮)
+      gameLoop(); // ゲームループを再開
+  }
+
+
+  function gameLoop() {
+    // 画面クリア
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ゲーム要素の更新
+    updateGame();
+
+    // キャラクター描画
+    drawCharacter();
+
+    // 障害物描画
+    drawObstacles();
+
+    // ゲームオーバーでなければ次のフレームを要求
+    if (!gameOver) {
+      requestAnimationFrame(gameLoop);
+    }
+  }
+
+  // キーボードイベントリスナー
+  document.addEventListener('keydown', (event) => {
+    if (gameOver) return; // ゲームオーバーなら操作無効
+
+    // スペースキーまたは上矢印キーでジャンプ
+    if ((event.code === 'Space' || event.code === 'ArrowUp') && !character.isJumping) {
+      character.dy = character.jumpPower; // 上向きの速度を設定
+      character.isJumping = true; // ジャンプ中フラグを立てる
+      jumpSynth.triggerAttackRelease("C4", "8n"); // ジャンプ音
+    }
+
+    // 左矢印キーで左移動
+    if (event.code === 'ArrowLeft') {
+      character.dx = -character.speed;
+    }
+    // 右矢印キーで右移動
+    if (event.code === 'ArrowRight') {
+      character.dx = character.speed;
+    }
+  });
+
+   document.addEventListener('keyup', (event) => {
+     if (gameOver) return; // ゲームオーバーなら操作無効
+
+    // 矢印キーを離したら停止
+    if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
+      character.dx = 0;
+    }
+  });
+
+  // モバイル操作ボタンのイベントリスナー
+  leftButton.addEventListener('touchstart', () => { if (!gameOver) character.dx = -character.speed; });
+  leftButton.addEventListener('touchend', () => { if (!gameOver) character.dx = 0; });
+  rightButton.addEventListener('touchstart', () => { if (!gameOver) character.dx = character.speed; });
+  rightButton.addEventListener('touchend', () => { if (!gameOver) character.dx = 0; });
+  jumpButton.addEventListener('touchstart', () => {
+      if (!gameOver && !character.isJumping) {
+          character.dy = character.jumpPower;
+          character.isJumping = true;
+          jumpSynth.triggerAttackRelease("C4", "8n");
+      }
+  });
+  // ジャンプボタンは離してもジャンプが継続するわけではないのでtouchendは不要
+
+
+  // リスタートボタンのイベントリスナー
+  restartButton.addEventListener('click', restartGame);
+
+
+  // ウィンドウリサイズ対応
+  window.addEventListener('resize', () => {
+    setupGame(); // ゲーム要素のサイズと位置を再設定
+    // 障害物の位置も新しいスケールに合わせて調整が必要ですが、
+    // シンプルにするためリサイズ時は障害物をリセットするのが簡単です。
+    // あるいは、各障害物の位置とサイズもスケールに合わせて更新するロジックが必要です。
+    // ここではシンプルにリサイズ時はリスタートを推奨するか、障害物をリセットするなどの対応が考えられます。
+    // 今回はリサイズ時にゲーム要素を再設定し、障害物はそのまま描画を試みますが、
+    // 見た目が崩れる場合はリスタートを検討してください。
+  });
+
+  // 初期設定を呼び出し
+  // setupGame(); // 画像読み込み後に呼び出すように変更したため不要
+
+</script>
+
+</body>
+</html>

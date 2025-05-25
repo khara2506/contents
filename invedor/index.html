@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Space Invaders</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    html, body { margin:0; padding:0; background:#000; overflow:hidden; }
+    canvas { display:block; width:100vw; height:100vh; }
+    #controls { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:2; }
+    .btn { width:60px; height:60px; background:rgba(255,255,255,0.2); color:#fff; font-size:24px; border:none; border-radius:30px; }
+    #levelSelect { position:absolute; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; z-index:3; }
+    #levelSelect h1 { margin-bottom:20px; font-size:2rem; }
+    #levelSelect select { font-size:1.2rem; padding:10px; margin-bottom:20px; }
+    #levelSelect button { font-size:1.2rem; padding:10px 20px; }
+  </style>
+</head>
+<body>
+<div id="levelSelect">
+  <h1>レベルを選択</h1>
+  <select id="levelDropdown"></select>
+  <button id="startBtn" disabled>ロード中...</button>
+</div>
+<canvas id="game"></canvas>
+<div id="controls">
+  <button id="left" class="btn">◀︎</button>
+  <button id="shoot" class="btn">●</button>
+  <button id="right" class="btn">▶︎</button>
+</div>
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const maxLevel = 10;
+  let level = 1;
+
+  // Level selection UI
+  const levelSelectDiv = document.getElementById('levelSelect');
+  const levelDropdown = document.getElementById('levelDropdown');
+  const startBtn = document.getElementById('startBtn');
+  for(let i=1; i<=maxLevel; i++){
+    const opt = document.createElement('option'); opt.value = i; opt.textContent = `Level ${i}`;
+    levelDropdown.appendChild(opt);
+  }
+
+  // Images preload
+  const playerImg = new Image(); playerImg.src = '../images/AO.png';
+  const invaderImg = new Image(); invaderImg.src = '../images/kaiju.png';
+  let loadedCount = 0;
+  [playerImg, invaderImg].forEach(img => {
+    img.onload = () => { loadedCount++; if(loadedCount === 2) { startBtn.disabled = false; startBtn.textContent = 'スタート'; } };
+    img.onerror = () => alert('画像が読み込めませんでした。パスを確認してください。');
+  });
+
+  startBtn.addEventListener('click', ()=>{
+    level = parseInt(levelDropdown.value);
+    levelSelectDiv.style.display = 'none';
+    onStart();
+  });
+
+  let width, height;
+  let player, bullets, invaders;
+  const invaderCols = 8, invaderRows = 4;
+  let invaderW, invaderH, invaderPadding, invaderOffsetLeft, invaderOffsetTop;
+  let invaderDir, score, gameOver;
+
+  function onStart(){
+    window.addEventListener('resize', resize);
+    resize();
+    loop();
+  }
+
+  function resize(){
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    initGame();
+  }
+
+  function initGame(){
+    invaderDir = level;
+    score = 0;
+    gameOver = false;
+    bullets = [];
+
+    invaderW = Math.min(width * 0.08, 40);
+    invaderH = invaderW;
+    invaderPadding = invaderW * 0.4;
+    let gridWidth = invaderCols * invaderW + (invaderCols - 1) * invaderPadding;
+    if(gridWidth > width * 0.9){
+      invaderW = (width * 0.9) / (invaderCols + (invaderCols - 1) * 0.4);
+      invaderH = invaderW;
+      invaderPadding = invaderW * 0.4;
+      gridWidth = invaderCols * invaderW + (invaderCols - 1) * invaderPadding;
+    }
+    invaderOffsetLeft = (width - gridWidth)/2 + invaderW/2;
+    invaderOffsetTop = height * 0.1 + invaderH/2;
+
+    // Adjust player position well above controls
+    const ctrlHeight = document.getElementById('controls').offsetHeight;
+    const extraMargin = invaderH * 0.5;  // additional space
+    player = {
+      x: width/2,
+      y: height - ctrlHeight - invaderH - extraMargin,
+      w: invaderW,
+      h: invaderH,
+      speed: invaderW*0.1
+    };
+
+    invaders = [];
+    for(let r=0; r<invaderRows; r++){
+      for(let c=0; c<invaderCols; c++){
+        invaders.push({ x: invaderOffsetLeft + c*(invaderW+invaderPadding),
+                        y: invaderOffsetTop + r*(invaderH+invaderPadding),
+                        w: invaderW,
+                        h: invaderH,
+                        alive: true });
+      }
+    }
+  }
+
+  const keys = {};
+  document.addEventListener('keydown', e=>keys[e.code]=true);
+  document.addEventListener('keyup', e=>keys[e.code]=false);
+  document.getElementById('left').addEventListener('touchstart', e=>{ e.preventDefault(); keys['ArrowLeft']=true; });
+  document.getElementById('left').addEventListener('touchend',   e=>{ e.preventDefault(); keys['ArrowLeft']=false; });
+  document.getElementById('right').addEventListener('touchstart',e=>{ e.preventDefault(); keys['ArrowRight']=true; });
+  document.getElementById('right').addEventListener('touchend',  e=>{ e.preventDefault(); keys['ArrowRight']=false; });
+  document.getElementById('shoot').addEventListener('touchstart',e=>{ e.preventDefault(); shoot(); });
+  document.addEventListener('keydown', e=>{ if(e.code==='Space') shoot(); });
+
+  function shoot(){ if(!gameOver) bullets.push({ x:player.x, y:player.y-player.h/2, r:player.w*0.1, speed:player.speed*1.5 }); }
+
+  function update(){
+    if(gameOver) return;
+    if(keys['ArrowLeft']) player.x -= player.speed;
+    if(keys['ArrowRight']) player.x += player.speed;
+    player.x = Math.max(player.w/2, Math.min(width-player.w/2, player.x));
+
+    bullets = bullets.filter(b=>b.y>-b.r);
+    bullets.forEach(b=>b.y-=b.speed);
+
+    let shiftDown=false;
+    const alive = invaders.filter(i=>i.alive);
+    const rightEdge = Math.max(...alive.map(i=>i.x+i.w/2));
+    const leftEdge  = Math.min(...alive.map(i=>i.x-i.w/2));
+    if(rightEdge>=width) { invaderDir = -Math.abs(invaderDir); shiftDown=true; }
+    if(leftEdge<=0)     { invaderDir =  Math.abs(invaderDir); shiftDown=true; }
+    invaders.forEach(i=>{ i.x += invaderDir; if(shiftDown) i.y += i.h*0.5; if(i.alive && i.y + i.h/2 >= player.y - player.h/2) gameOver=true; });
+
+    bullets.forEach(b=>{ invaders.forEach(i=>{ if(i.alive && b.x>i.x-i.w/2 && b.x<i.x+i.w/2 && b.y>i.y-i.h/2 && b.y<i.y+i.h/2){ i.alive=false; b.y=-10; score+=10; } }); });
+
+    if(invaders.every(i=>!i.alive)){
+      gameOver=true;
+      setTimeout(()=>{ if(level < maxLevel){ if(confirm(`Level ${level} cleared!\nNext level?`)){ level++; initGame(); loop(); } else alert(`Game ended at level ${level}.`); } else alert(`Congratulations! You cleared all ${maxLevel} levels!`); }, 100);
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,width,height);
+    ctx.drawImage(playerImg, player.x-player.w/2, player.y-player.h/2, player.w, player.h);
+    ctx.fillStyle='#ff0'; bullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,2*Math.PI);ctx.fill();});
+    invaders.forEach(i=>{ if(i.alive) ctx.drawImage(invaderImg, i.x-i.w/2, i.y-i.h/2, i.w, i.h); });
+    ctx.fillStyle='#fff'; ctx.font=`${Math.floor(width*0.05)}px Arial`; ctx.textAlign='left'; ctx.fillText(`Score: ${score}`,10,height*0.07);
+    if(gameOver){ ctx.fillStyle='#fff'; ctx.font=`${Math.floor(width*0.1)}px Arial`; ctx.textAlign='center'; ctx.fillText('Game Over',width/2,height*0.5); ctx.font=`${Math.floor(width*0.04)}px Arial`; ctx.fillText('Tap to Restart',width/2,height*0.6); }
+  }
+
+  function loop(){ update(); draw(); if(!gameOver) requestAnimationFrame(loop); }
+})();
+</script>
+</body>
+</html>
