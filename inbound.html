@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>インタラクティブ・レポート：インバウンド旅行者の課題と機会</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Warm Professional -->
+    <!-- Application Structure Plan: A narrative-driven SPA. It starts with a high-level overview of the problem (Pain Point Ranking), then deep-dives into the top 3 specific issues (Trash, Communication, Transport) using a multi-column layout. It then pivots to the core user opportunity (Expectations, highlighting Food), and concludes with a visual representation of the proposed solution (a flowchart diagram). This structure is chosen for maximum usability, guiding the user logically from problem to insight to solution, making the dense report data easily digestible and the strategic conclusion feel inevitable and clear. -->
+    <!-- Visualization & Content Choices:
+        - Pain Point Ranking (Change): A grouped bar chart (Chart.js) to clearly show the increase in problems from 2019 to 2023. Interaction: Tooltip on hover.
+        - Deep Dive Sections (Organize/Inform): Donut charts and a grouped bar chart (Chart.js) to break down the composition and context of each major problem. Interaction: Tooltip on hover.
+        - Expectations (Inform/Proportion): A large, impactful donut chart (Chart.js) to emphasize the overwhelming preference for food. Interaction: Tooltip on hover.
+        - Solution Concept (Organize/Process): A flowchart diagram built with structured HTML and Tailwind CSS to visually connect problems to solutions. This method is chosen to explicitly avoid SVG/Mermaid as required.
+        - All choices prioritize clarity and support the narrative flow of the designed application structure. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #FAF9F6;
+            color: #2D3748;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 40vh;
+            max-height: 400px;
+        }
+        .small-chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 300px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 250px;
+            max-height: 280px;
+        }
+        h1, h2, h3 {
+            font-weight: 900;
+        }
+        .accent-text {
+            color: #C05621;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .nav-button:hover, .nav-button.active {
+            background-color: #C05621;
+            color: #FFFFFF;
+        }
+        .card {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .flow-node {
+            border: 2px solid #C05621;
+            background-color: #FFF;
+        }
+        .flow-line {
+            background-color: #718096;
+        }
+        .flow-arrow::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-top: 7px solid transparent;
+            border-bottom: 7px solid transparent;
+            border-left: 7px solid #718096;
+        }
+    </style>
+</head>
+<body class="antialiased leading-relaxed">
+
+    <nav id="navbar" class="sticky top-0 bg-white/80 backdrop-blur-md z-50 shadow-sm">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-center items-center py-3 space-x-2 md:space-x-4 overflow-x-auto">
+                <button onclick="scrollToSection('header')" class="nav-button font-bold py-2 px-4 rounded-full text-sm">トップ</button>
+                <button onclick="scrollToSection('pain-points')" class="nav-button font-bold py-2 px-4 rounded-full text-sm">困りごと</button>
+                <button onclick="scrollToSection('deep-dive')" class="nav-button font-bold py-2 px-4 rounded-full text-sm">課題深掘り</button>
+                <button onclick="scrollToSection('expectations')" class="nav-button font-bold py-2 px-4 rounded-full text-sm">期待</button>
+                <button onclick="scrollToSection('solution')" class="nav-button font-bold py-2 px-4 rounded-full text-sm">解決策</button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="app" class="container mx-auto p-4 md:p-8">
+
+        <header id="header" class="text-center py-16 md:py-24">
+            <h1 class="text-4xl md:text-5xl lg:text-6xl mb-4">インバウンドの<span class="accent-text">課題</span>と<span class="accent-text">機会</span></h1>
+            <p class="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
+                データが明らかにする、訪日旅行者の「不便」と「真の期待」。そのギャップから、次世代のWebサービスが生まれる。
+            </p>
+        </header>
+
+        <main class="space-y-16 md:space-y-24">
+
+            <section id="pain-points">
+                <h2 class="text-3xl text-center mb-2">増え続ける旅行者の「困りごと」</h2>
+                <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
+                    コロナ禍を経てインバウンドが回復する一方、旅行者が直面する困難は増加傾向にあります。特に基本的なインフラやコミュニケーションにおける課題が深刻化しています。
+                </p>
+                <div class="card rounded-xl p-4 md:p-8">
+                    <div class="chart-container h-[50vh] md:h-[60vh]">
+                        <canvas id="painPointsChart"></canvas>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4 text-center">出典: 観光庁 令和5年度「訪日外国人旅行者の受入環境整備に関するアンケート」</p>
+                </div>
+            </section>
+
+            <section id="deep-dive">
+                <h2 class="text-3xl text-center mb-10">旅行者を悩ませる三大課題の現場</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    
+                    <div class="card rounded-xl p-6 flex flex-col items-center text-center">
+                        <h3 class="text-2xl mb-4">🚮 ごみ箱の少なさ</h3>
+                        <p class="text-5xl font-black accent-text mb-2">30.1%</p>
+                        <p class="text-gray-600 mb-6 flex-grow">観光地やその道中でごみ箱が見つからず、分別方法も不明瞭。日本の清潔さの裏にある旅行者の苦労が伺えます。</p>
+                        <div class="small-chart-container">
+                            <canvas id="trashIssuesChart"></canvas>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">困った場所の内訳</p>
+                    </div>
+
+                    <div class="card rounded-xl p-6 flex flex-col items-center text-center">
+                        <h3 class="text-2xl mb-4">💬 コミュニケーション</h3>
+                        <p class="text-5xl font-black accent-text mb-2">22.5%</p>
+                        <p class="text-gray-600 mb-6 flex-grow">特に飲食店での言葉の壁が深刻。76%が翻訳アプリで対応するも、店舗側の不慣れさが新たな障壁となっています。</p>
+                        <div class="small-chart-container">
+                            <canvas id="commIssuesChart"></canvas>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">ICTツール利用時の体験</p>
+                    </div>
+                    
+                    <div class="card rounded-xl p-6 flex flex-col items-center text-center">
+                        <h3 class="text-2xl mb-4">🚌 公共交通の利用</h3>
+                        <p class="text-5xl font-black accent-text mb-2">12.8%</p>
+                        <p class="text-gray-600 mb-6 flex-grow">都市部では鉄道網が複雑、地方ではバス情報が不足。特に地方のバスは旅行者の72%が困難と回答しています。</p>
+                        <div class="small-chart-container">
+                             <canvas id="transportIssuesChart"></canvas>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">交通手段別の課題 (地方)</p>
+                    </div>
+
+                </div>
+            </section>
+            
+            <section id="expectations">
+                <h2 class="text-3xl text-center mb-2">困難の先に、旅行者が本当に求めているもの</h2>
+                <p class="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
+                    数々の不便を乗り越えてでも、旅行者が日本で体験したいこと。その答えは圧倒的に「食」に集中しています。この強い動機こそ、サービス設計の核となります。
+                </p>
+                <div class="card rounded-xl p-4 md:p-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                        <div class="text-center">
+                            <p class="text-lg text-gray-600">訪日前に最も期待したこと</p>
+                            <p class="text-8xl md:text-9xl font-black my-2 accent-text">36%</p>
+                            <p class="text-3xl font-bold">が「日本食」と回答</p>
+                            <p class="mt-4 text-gray-600">
+                                伝統文化やショッピングを大きく引き離し、「食」が日本の最大の魅力。さらに「アニメ・マンガ」の聖地巡礼も、強力な体験動機です。
+                            </p>
+                        </div>
+                        <div class="chart-container h-80 md:h-96">
+                            <canvas id="expectationsChart"></canvas>
+                        </div>
+                    </div>
+                     <p class="text-xs text-gray-500 mt-4 text-center">出典: 観光庁 訪日外国人消費動向調査(2023年)等</p>
+                </div>
+            </section>
+
+            <section id="solution">
+                <h2 class="text-3xl text-center mb-10">課題と期待をつなぐWebサービス構想</h2>
+                 <div class="w-full p-6 md:p-10 card rounded-xl">
+                    <div class="flex flex-col items-center space-y-6">
+                        
+                        <div class="flow-node rounded-lg p-4 text-center w-full md:w-3/4">
+                            <h4 class="text-xl font-bold mb-2">旅行者の課題 & 期待</h4>
+                            <p class="text-sm text-gray-600">「ごみ箱がない、言葉が通じない、バスがわからない...でも、美味しいものを食べたいし、アニメの聖地にも行きたい！」</p>
+                        </div>
+                        
+                        <div class="w-1 h-8 bg-gray-300"></div>
+                        <div class="text-5xl">👇</div>
+                        <div class="w-1 h-8 bg-gray-300"></div>
+                        
+                        <div class="flow-node rounded-lg p-6 text-center w-full md:w-3/4 shadow-lg">
+                            <h4 class="text-2xl font-bold mb-3 accent-text">統合型トラベルアシスタント</h4>
+                            <p class="text-gray-600 mb-4">旅行者の「困った」を「楽しい」に変える、オールインワンのデジタルコンパニオン。</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left text-sm">
+                                <div class="bg-gray-50 p-3 rounded-md">
+                                    <strong class="block text-gray-800">スマートナビ 🗺️</strong>
+                                    ごみ箱マップ & 最適交通ルート案内（地方バス対応）
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded-md">
+                                    <strong class="block text-gray-800">AIコム 💬</strong>
+                                    リアルタイム翻訳、メニューカメラ読取、定型句サポート
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded-md">
+                                    <strong class="block text-gray-800">体験ハブ ⛩️</strong>
+                                    食事制限対応の店検索、アニメ聖地巡礼ルート提案
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-1 h-8 bg-gray-300"></div>
+                        <div class="text-5xl">👇</div>
+                        <div class="w-1 h-8 bg-gray-300"></div>
+
+                        <div class="flow-node rounded-lg p-4 text-center w-full md:w-3/4">
+                            <h4 class="text-xl font-bold mb-2">シームレスな日本体験</h4>
+                            <p class="text-sm text-gray-600">ストレスフリーで、日本の文化と食を心の底から満喫する旅へ。</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="text-center mt-16 md:mt-24 py-8 border-t border-gray-200">
+            <p class="text-gray-500">データに基づいた解決策で、日本の観光を次のステージへ。</p>
+        </footer>
+    </div>
+
+    <script>
+        const chartColors = {
+            accent: '#C05621',
+            accentLight: 'rgba(192, 86, 33, 0.6)',
+            gray: '#A0AEC0',
+            grayLight: 'rgba(160, 174, 192, 0.6)',
+            blue: '#4299E1',
+            green: '#48BB78',
+            yellow: '#F6E05E',
+            purple: '#9F7AEA'
+        };
+
+        const globalChartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#4A5568',
+                        font: {
+                            family: "'Noto Sans JP', sans-serif",
+                            size: 12,
+                        },
+                        padding: 20,
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#2D3748',
+                    titleColor: '#FFFFFF',
+                    bodyColor: '#E2E8F0',
+                    titleFont: { size: 14, weight: 'bold' },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    cornerRadius: 6,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            const item = tooltipItems[0];
+                            let label = item.chart.data.labels[item.dataIndex];
+                            if (Array.isArray(label)) {
+                                return label.join(' ');
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#718096' },
+                    grid: { color: '#E2E8F0' }
+                },
+                y: {
+                    ticks: { color: '#718096' },
+                    grid: { color: '#E2E8F0' }
+                }
+            }
+        };
+
+        function wrapLabel(str, maxWidth = 16) {
+            if (typeof str !== 'string' || str.length <= maxWidth) {
+                return str;
+            }
+            const words = str.split('');
+            let lines = [];
+            let currentLine = words[0];
+
+            for (let i = 1; i < words.length; i++) {
+                if ((currentLine + words[i]).length > maxWidth/2 && currentLine.length > maxWidth/2-2) {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                } else {
+                    currentLine += words[i];
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        }
+
+        const painPointsLabels = [
+            'ごみ箱の少なさ', 
+            ['施設等スタッフとの', 'コミュニケーション'],
+            ['多言語表示の', '少なさ・わかりにくさ'], 
+            '公共交通の利用',
+            '無料公衆無線LAN環境'
+        ];
+
+        new Chart(document.getElementById('painPointsChart'), {
+            type: 'bar',
+            data: {
+                labels: painPointsLabels,
+                datasets: [{
+                    label: '2019年 (令和元年)',
+                    data: [23.4, 17.0, 11.1, 12.2, 11.0],
+                    backgroundColor: chartColors.grayLight,
+                    borderColor: chartColors.gray,
+                    borderWidth: 1
+                }, {
+                    label: '2023年 (令和5年)',
+                    data: [30.1, 22.5, 13.4, 12.8, 9.6],
+                    backgroundColor: chartColors.accentLight,
+                    borderColor: chartColors.accent,
+                    borderWidth: 1
+                }]
+            },
+            options: { ...globalChartOptions,
+                plugins: { ...globalChartOptions.plugins, legend: { position: 'top' } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        new Chart(document.getElementById('trashIssuesChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['観光地/道中', '駅/ターミナル', '小売店', 'その他'],
+                datasets: [{
+                    data: [43, 16, 9, 32],
+                    backgroundColor: [chartColors.accent, chartColors.blue, chartColors.green, chartColors.grayLight],
+                    borderColor: '#FFFFFF',
+                    borderWidth: 4
+                }]
+            },
+            options: { ...globalChartOptions, plugins: {...globalChartOptions.plugins, legend: { position: 'right' }}}
+        });
+
+        new Chart(document.getElementById('commIssuesChart'), {
+            type: 'bar',
+            data: {
+                labels: ['ICTツール利用'],
+                datasets: [{
+                    label: 'スムーズだった',
+                    data: [64],
+                    backgroundColor: chartColors.green,
+                }, {
+                    label: 'スムーズではなかった',
+                    data: [34],
+                    backgroundColor: chartColors.accentLight,
+                }]
+            },
+            options: { ...globalChartOptions, indexAxis: 'y', scales: { x: { stacked: true, display: false }, y: { stacked: true, display: false } }, plugins: {...globalChartOptions.plugins, legend: { position: 'bottom' }}}
+        });
+
+        new Chart(document.getElementById('transportIssuesChart'), {
+            type: 'bar',
+            data: {
+                labels: ['バス', '鉄道'],
+                datasets: [{
+                    label: '地方部での課題',
+                    data: [72, 37],
+                    backgroundColor: [chartColors.accent, chartColors.blue],
+                }]
+            },
+            options: { ...globalChartOptions, scales: {y: {max: 80}}, plugins: {...globalChartOptions.plugins, legend: { display: false }}}
+        });
+
+        new Chart(document.getElementById('expectationsChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['日本食', '自然観光', 'ショッピング', 'テーマパーク', '温泉', 'その他'].map(l => wrapLabel(l)),
+                datasets: [{
+                    data: [36.0, 11.5, 8.6, 8.5, 6.7, 28.7],
+                    backgroundColor: [chartColors.accent, chartColors.green, chartColors.blue, chartColors.purple, chartColors.yellow, chartColors.grayLight],
+                    borderColor: '#FFFFFF',
+                    borderWidth: 5
+                }]
+            },
+            options: { ...globalChartOptions, plugins: { ...globalChartOptions.plugins, legend: { position: 'left' } } }
+        });
+
+        // Smooth scrolling and active nav state
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        const sections = document.querySelectorAll('section, header');
+        const navButtons = document.querySelectorAll('.nav-button');
+
+        window.onscroll = () => {
+            let current = 'header';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (pageYOffset >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navButtons.forEach(button => {
+                button.classList.remove('active');
+                if (button.getAttribute('onclick').includes(current)) {
+                    button.classList.add('active');
+                }
+            });
+        };
+
+    </script>
+</body>
+</html>
