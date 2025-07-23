@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>夏休み自由研究：献立＆買い物アシスタントアプリ</title>
+    <!-- Tailwind CSS CDNの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 薄い青灰色の背景 */
+            color: #2d3748; /* 濃い灰色のテキスト */
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .feature-card {
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* より丸い角 */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease-in-out;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px); /* ホバーで少し浮き上がる */
+        }
+        .gradient-text {
+            background: linear-gradient(to right, #6366f1, #a855f7); /* 紫から青へのグラデーション */
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .button-primary {
+            background: linear-gradient(to right, #6366f1, #a855f7);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px; /* 完全な丸角 */
+            font-weight: 600;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .button-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <!-- ヘッダーセクション -->
+        <header class="text-center mb-16 mt-8">
+            <!-- 夏休みの自由研究を最も目立つように変更 -->
+            <h2 class="text-4xl md:text-5xl font-extrabold leading-tight mb-4 gradient-text">
+                夏休みの自由研究プロジェクト
+            </h2>
+            <h1 class="text-5xl md:text-6xl font-extrabold leading-tight mb-4 text-gray-800">
+                献立 & 買い物アシスタント
+            </h1>
+            <p class="text-xl md:text-2xl text-gray-700 max-w-2xl mx-auto">
+                毎日の献立と買い物をスマートに管理する、僕（私）の夏休み宿題アプリのティザーサイトです！
+            </p>
+            <div class="mt-8">
+                <a href="#features" class="button-primary">
+                    アプリの機能を見る
+                </a>
+            </div>
+        </header>
+
+        <!-- 機能紹介セクション -->
+        <section id="features" class="w-full px-4 py-16 bg-gray-50 rounded-3xl shadow-lg">
+            <h2 class="text-4xl font-bold text-center mb-12 text-gray-800">主な機能</h2>
+            <div class="container mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                <!-- 機能1: 1週間分の献立作成 -->
+                <div class="feature-card p-8 flex flex-col items-center text-center">
+                    <div class="text-5xl text-indigo-500 mb-4">🗓️</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">1週間献立プランナー</h3>
+                    <p class="text-gray-600">
+                        カレンダー形式で、朝・昼・夕の献立を簡単に計画できます。毎週の献立作成もラクラク！
+                    </p>
+                </div>
+
+                <!-- 機能2: 献立からの買い物リスト自動生成 -->
+                <div class="feature-card p-8 flex flex-col items-center text-center">
+                    <div class="text-5xl text-purple-500 mb-4">🛒</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">スマート買い物リスト</h3>
+                    <p class="text-gray-600">
+                        作成した献立から必要な食材を自動でリストアップ！過去の献立からも生成可能です。
+                    </p>
+                </div>
+
+                <!-- 機能3: 冷蔵庫の中身参照＆調整 -->
+                <div class="feature-card p-8 flex flex-col items-center text-center">
+                    <div class="text-5xl text-green-500 mb-4">🧊</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">冷蔵庫連携</h3>
+                    <p class="text-gray-600">
+                        冷蔵庫の在庫を参照し、すでに家にあるものは買い物リストから自動で除外。無駄をなくします。
+                    </p>
+                </div>
+
+                <!-- 機能4: 定期購入品リスト管理 -->
+                <div class="feature-card p-8 flex flex-col items-center text-center">
+                    <div class="text-5xl text-red-500 mb-4">📦</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">定期購入品管理</h3>
+                    <p class="text-gray-600">
+                        牛乳やコーヒーなど、毎週必ず買うものは自動でリストに追加。イレギュラーな品も追加できます。
+                    </p>
+                </div>
+
+                <!-- 機能5: 店舗レイアウトに合わせたソート -->
+                <div class="feature-card p-8 flex flex-col items-center text-center">
+                    <div class="text-5xl text-yellow-500 mb-4">🗺️</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">店舗最適化リスト</h3>
+                    <p class="text-gray-600">
+                        よく行くお店のレイアウトに合わせて買い物リストを並べ替え。効率的な買い物をサポートします。
+                    </p>
+                </div>
+
+                <!-- 機能6: 買い物分担機能 -->
+                <div class="feature-card p-8 flex flex-col items-center text-center">
+                    <div class="text-5xl text-blue-500 mb-4">🤝</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">家族で分担買い物</h3>
+                    <p class="text-gray-600">
+                        店舗の陳列棚に合わせて、家族や友達と買い物を分担。時短にもつながります。
+                    </p>
+                </div>
+
+                <!-- 機能7: 過去メニューのおすすめ機能 -->
+                <div class="feature-card p-8 flex flex-col items-center text-center">
+                    <div class="text-5xl text-orange-500 mb-4">✨</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">AIメニューレコメンド</h3>
+                    <p class="text-gray-600">
+                        過去にたくさん作ったお気に入りのメニューを自動でおすすめ。献立のマンネリ化を防ぎます。
+                    </p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- フッターセクション -->
+        <footer class="text-center py-8 mt-16 text-gray-600">
+            <p>&copy; 2025 夏休み自由研究プロジェクト. All rights reserved.</p>
+            <p class="mt-2 text-sm">
+                このアプリは、献立作成と買い物をもっと楽にするために、夏休みの自由研究として開発されました。
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
